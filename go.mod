@@ -23,6 +23,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
+require github.com/samber/lo v1.38.1 // indirect
+
 require (
 	// Vanity URL for https://github.com/imdario/mergo
 	dario.cat/mergo v1.0.0 // indirect
