@@ -1,10 +1,14 @@
-name: goreleaser
+name: Release new version
 
 on:
   workflow_dispatch:
     inputs:
       version:
         description: 'The version tag to release, (e.g. v1.2.3)'
+        required: true
+        type: string
+      commit:
+        description: 'The commit hash to release'
         required: true
         type: string
 
@@ -31,6 +35,7 @@ jobs:
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           persist-credentials: false
+          ref: ${{ inputs.commit }}
       - name: Set up Go
         uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
         with:
@@ -50,6 +55,7 @@ jobs:
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           persist-credentials: false
+          ref: ${{ inputs.commit }}
       - name: Set up Go
         uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
         with:
@@ -67,14 +73,14 @@ jobs:
       contents: write  # to write a tag
     steps:
       - name: Create tag
-        uses: actions/github-script@v5
+        uses: actions/github-script@v6
         with:
           script: |
             github.rest.git.createRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: 'refs/tags/${{ inputs.version }}',
-              sha: context.sha
+              sha: ${{ inputs.commit }}
             })
   goreleaser:
     outputs:
@@ -84,9 +90,6 @@ jobs:
       packages: write # for goreleaser/goreleaser-action to publish docker images
     runs-on: ubuntu-latest
     needs:
-      - lint
-      - tests
-      - osv-scan
       - tag-release
     env:
       # Required for buildx on docker 19.x
@@ -96,6 +99,7 @@ jobs:
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           fetch-depth: 0
+          ref: ${{ inputs.commit }}
       - name: Set up Go
         uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
         with:
