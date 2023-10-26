@@ -107,12 +107,12 @@ jobs:
           check-latest: true
       - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3
       - uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3
-      - name: ghcr-login
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # - name: ghcr-login
+      #   uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.repository_owner }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
       - name: Run GoReleaser
         id: run-goreleaser
         uses: goreleaser/goreleaser-action@7ec5c2b0c6cdda6e8bbb49444bc797dd33d74dd8 # v5.0.0
