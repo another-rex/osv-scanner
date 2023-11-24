@@ -3,7 +3,7 @@ name: Release new version on tag push
 on:
   push:
     tags:
-      v*
+      - v*
 
 permissions:
   contents: read # to fetch code (actions/checkout)

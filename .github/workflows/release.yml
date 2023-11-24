@@ -1,4 +1,4 @@
-name: Push new version tag to release version
+name: Start release pipeline
 
 on:
   workflow_dispatch:
