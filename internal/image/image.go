@@ -192,7 +192,7 @@ func LoadImage(imagePath string) (*Image, error) {
 				}
 				fileType = Dir
 
-			default: // Assume if it's not a directory, it's a normal file
+			case tar.TypeReg: // Assume if it's not a directory, it's a normal file
 				// Write all files as read/writable by the current user, inaccessible by anyone else
 				// Actual permission bits are stored in FileNode
 				f, err := os.OpenFile(absoluteDiskPath, os.O_CREATE|os.O_RDWR, filePermission)
@@ -210,6 +210,8 @@ func LoadImage(imagePath string) (*Image, error) {
 				}
 				fileType = RegularFile
 				f.Close()
+			default:
+				continue
 			}
 
 			// Each outer loop, we add a layer to each relevant output flattenedLayers slice
