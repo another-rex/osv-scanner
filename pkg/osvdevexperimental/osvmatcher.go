@@ -14,9 +14,9 @@ const (
 	maxConcurrentRequests = 1000
 )
 
-// OSVMatcher implements the VulnerabilityMatcher interface with a osv.dev client.
+// OSVClientExperimental implements the VulnerabilityMatcher interface with a osv.dev client.
 // It sends out requests for every package version and does not perform caching.
-type OSVMatcher struct {
+type OSVClientExperimental struct {
 	Client osvdev.OSVClient
 	// InitialQueryTimeout allows you to set a timeout specifically for the initial paging query
 	// If timeout runs out, whatever pages that has been successfully queried within the timeout will
@@ -25,7 +25,7 @@ type OSVMatcher struct {
 }
 
 // QueryWithPagingAndHydration returns a slice of vulnerabilities for each query
-func (matcher *OSVMatcher) QueryWithPagingAndHydration(ctx context.Context, queries []*osvdev.Query) ([][]*osvschema.Vulnerability, error) {
+func (matcher *OSVClientExperimental) QueryWithPagingAndHydration(ctx context.Context, queries []*osvdev.Query) ([][]*osvschema.Vulnerability, error) {
 	var batchResp *osvdev.BatchedResponse
 	deadlineExceeded := false
 
