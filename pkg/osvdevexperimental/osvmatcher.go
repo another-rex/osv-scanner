@@ -1,4 +1,4 @@
-package osvmatcher
+package osvdevexperimental
 
 import (
 	"context"
@@ -24,8 +24,8 @@ type OSVMatcher struct {
 	InitialQueryTimeout time.Duration
 }
 
-// QueryWithPaging returns a slice of vulnerabilities for each query
-func (matcher *OSVMatcher) QueryWithPaging(ctx context.Context, queries []*osvdev.Query) ([][]*osvschema.Vulnerability, error) {
+// QueryWithPagingAndHydration returns a slice of vulnerabilities for each query
+func (matcher *OSVMatcher) QueryWithPagingAndHydration(ctx context.Context, queries []*osvdev.Query) ([][]*osvschema.Vulnerability, error) {
 	var batchResp *osvdev.BatchedResponse
 	deadlineExceeded := false
 
