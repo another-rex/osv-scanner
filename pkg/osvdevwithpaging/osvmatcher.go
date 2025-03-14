@@ -5,9 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/osv-scalibr/extractor"
-	"github.com/google/osv-scalibr/log"
-	"github.com/google/osv-scanner/v2/internal/imodels"
 	"github.com/google/osv-scanner/v2/pkg/osvdev"
 	"github.com/ossf/osv-schema/bindings/go/osvschema"
 	"golang.org/x/sync/errgroup"
@@ -27,15 +24,14 @@ type OSVMatcher struct {
 	InitialQueryTimeout time.Duration
 }
 
-func (matcher *OSVMatcher) MatchVulnerabilities(ctx context.Context, pkgs []*extractor.Inventory) ([][]*osvschema.Vulnerability, error) {
+// QueryWithPaging returns a slice of vulnerabilities for each query
+func (matcher *OSVMatcher) QueryWithPaging(ctx context.Context, queries []*osvdev.Query) ([][]*osvschema.Vulnerability, error) {
 	var batchResp *osvdev.BatchedResponse
 	deadlineExceeded := false
 
 	{
 		var err error
 
-		// convert Inventory to Query for each pkgs element
-		queries := invsToQueries(pkgs)
 		// If there is a timeout for the initial query, set an additional context deadline here.
 		if matcher.InitialQueryTimeout > 0 {
 			batchQueryCtx, cancelFunc := context.WithDeadline(ctx, time.Now().Add(matcher.InitialQueryTimeout))
@@ -149,40 +145,4 @@ func queryForBatchWithPaging(ctx context.Context, c *osvdev.OSVClient, queries [
 	}
 
 	return batchResp, errToReturn
-}
-
-func pkgToQuery(pkg imodels.PackageInfo) *osvdev.Query {
-	if pkg.Name() != "" && !pkg.Ecosystem().IsEmpty() && pkg.Version() != "" {
-		return &osvdev.Query{
-			Package: osvdev.Package{
-				Name:      pkg.Name(),
-				Ecosystem: pkg.Ecosystem().String(),
-			},
-			Version: pkg.Version(),
-		}
-	}
-
-	if pkg.Commit() != "" {
-		return &osvdev.Query{
-			Commit: pkg.Commit(),
-		}
-	}
-
-	// This should have be filtered out before reaching this point
-	log.Errorf("invalid query element: %#v", pkg)
-
-	return nil
-}
-
-// invsToQueries converts inventories to queries via the osv-scanner internal imodels
-// to perform the necessary transformations
-func invsToQueries(invs []*extractor.Inventory) []*osvdev.Query {
-	queries := make([]*osvdev.Query, len(invs))
-
-	for i, inv := range invs {
-		pkg := imodels.FromInventory(inv)
-		queries[i] = pkgToQuery(pkg)
-	}
-
-	return queries
 }
