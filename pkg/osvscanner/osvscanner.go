@@ -18,7 +18,10 @@ import (
 	"github.com/google/osv-scalibr/artifact/image/layerscanning/image"
 	"github.com/google/osv-scalibr/clients/datasource"
 	"github.com/google/osv-scalibr/clients/resolution"
+	"github.com/google/osv-scalibr/enricher"
 	"github.com/google/osv-scalibr/extractor"
+	scalibrfs "github.com/google/osv-scalibr/fs"
+	"github.com/google/osv-scalibr/plugin"
 	"github.com/google/osv-scanner/v2/internal/clients/clientimpl/baseimagematcher"
 	"github.com/google/osv-scanner/v2/internal/clients/clientimpl/licensematcher"
 	"github.com/google/osv-scanner/v2/internal/clients/clientimpl/localmatcher"
@@ -29,6 +32,7 @@ import (
 	"github.com/google/osv-scanner/v2/internal/imodels"
 	"github.com/google/osv-scanner/v2/internal/imodels/results"
 	"github.com/google/osv-scanner/v2/internal/output"
+	"github.com/google/osv-scanner/v2/internal/scalibrextract/ffa/packageenricher"
 	"github.com/google/osv-scanner/v2/internal/version"
 	"github.com/google/osv-scanner/v2/pkg/models"
 	"github.com/google/osv-scanner/v2/pkg/osvscanner/internal/imagehelpers"
@@ -314,6 +318,12 @@ func DoContainerScan(actions ScannerActions) (models.VulnerabilityResults, error
 	scanner := scalibr.New()
 	scalibrSR, err := scanner.ScanContainer(context.Background(), img, &scalibr.ScanConfig{
 		FilesystemExtractors: scanners.BuildArtifactExtractors(),
+		Capabilities: &plugin.Capabilities{
+			OS:            plugin.OSLinux,
+			Network:       plugin.NetworkOnline,
+			DirectFS:      false,
+			RunningSystem: false,
+		},
 	})
 	if err != nil {
 		return models.VulnerabilityResults{}, fmt.Errorf("failed to scan container image: %w", err)
@@ -321,6 +331,16 @@ func DoContainerScan(actions ScannerActions) (models.VulnerabilityResults, error
 
 	if scalibrSR.Inventory.IsEmpty() {
 		return models.VulnerabilityResults{}, ErrNoPackagesFound
+	}
+
+	// Enrichment
+	err = packageenricher.PackageEnricher{}.Enrich(context.Background(), &enricher.ScanInput{
+		FS:   os.DirFS("/").(scalibrfs.FS),
+		Root: "/",
+	}, &scalibrSR.Inventory)
+
+	if err != nil {
+		return models.VulnerabilityResults{}, fmt.Errorf("failed to enrich container image: %w", err)
 	}
 
 	// --- Save Scalibr Scan Results ---

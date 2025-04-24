@@ -38,6 +38,7 @@ import (
 	"github.com/google/osv-scalibr/extractor/filesystem/os/dpkg"
 	"github.com/google/osv-scalibr/extractor/filesystem/sbom/cdx"
 	"github.com/google/osv-scalibr/extractor/filesystem/sbom/spdx"
+	"github.com/google/osv-scanner/v2/internal/scalibrextract/ffa/hashextractor"
 	"github.com/google/osv-scanner/v2/internal/scalibrextract/filesystem/vendored"
 	"github.com/google/osv-scanner/v2/internal/scalibrextract/language/javascript/nodemodules"
 	"github.com/google/osv-scanner/v2/internal/scalibrextract/vcs/gitrepo"
@@ -187,6 +188,9 @@ func BuildArtifactExtractors() []filesystem.Extractor {
 		// Debian
 		// TODO: Add tests for debian containers
 		dpkg.New(dpkg.DefaultConfig()),
+
+		// --- Experimental ---
+		hashextractor.Extractor{},
 	}
 
 	return extractorsToUse

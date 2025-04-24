@@ -10,9 +10,11 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/google/osv-scalibr/enricher"
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/extractor/filesystem"
 	"github.com/google/osv-scalibr/extractor/filesystem/simplefileapi"
+	"github.com/google/osv-scalibr/inventory"
 
 	scalibrfs "github.com/google/osv-scalibr/fs"
 )
@@ -81,6 +83,11 @@ func ExtractWithExtractors(ctx context.Context, localPath string, extractors []f
 	}
 
 	return result, nil
+}
+
+func EnrichWithEnricher(ctx context.Context, enr enricher.Enricher, inv *inventory.Inventory) error {
+
+	return nil
 }
 
 func extractWithExtractor(ctx context.Context, localPath string, info fs.FileInfo, ext filesystem.Extractor) ([]*extractor.Package, error) {
