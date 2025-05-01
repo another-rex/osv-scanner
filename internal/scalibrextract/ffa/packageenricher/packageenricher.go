@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net/url"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/spanner"
 	"github.com/google/osv-scalibr/enricher"
@@ -26,9 +27,16 @@ const Name = "ffa/packageenricher"
 type PackageEnricher struct {
 }
 
+func timeTrack(start time.Time, name string) {
+	elapsed := time.Since(start)
+	slog.Info(fmt.Sprintf("%s elapsed %s", name, elapsed))
+}
+
 func (p PackageEnricher) Enrich(ctx context.Context, input *enricher.ScanInput, inv *inventory.Inventory) error {
+	start := time.Now()
+	timeTrack(start, "Begin hash matching")
 	g, groupctx := errgroup.WithContext(ctx)
-	g.SetLimit(100)
+	g.SetLimit(200)
 
 	db, err := spanner.NewClient(groupctx, "projects/sos-josieang/instances/home-oregon-test/databases/home-oregon-test")
 	if err != nil {
@@ -36,7 +44,7 @@ func (p PackageEnricher) Enrich(ctx context.Context, input *enricher.ScanInput, 
 	}
 
 	ch := make(chan PackageMatch)
-	allPkgMatchesCh := make(chan map[string]PackageMatch)
+	chAllPkgMatches := make(chan map[string]PackageMatch)
 
 	newPackages := make([]*extractor.Package, 0, len(inv.Packages))
 
@@ -51,7 +59,7 @@ func (p PackageEnricher) Enrich(ctx context.Context, input *enricher.ScanInput, 
 			}
 		}
 
-		allPkgMatchesCh <- pkgMatches
+		chAllPkgMatches <- pkgMatches
 	}()
 
 	for _, pkg := range inv.Packages {
@@ -117,7 +125,8 @@ func (p PackageEnricher) Enrich(ctx context.Context, input *enricher.ScanInput, 
 	}
 
 	close(ch)
-	pkgMatches := <-allPkgMatchesCh
+	pkgMatches := <-chAllPkgMatches
+	timeTrack(start, "Got all hash matches & intersected")
 
 	statusPkgs := map[string]string{}
 	correctMatches := 0
@@ -150,108 +159,143 @@ func (p PackageEnricher) Enrich(ctx context.Context, input *enricher.ScanInput, 
 		}
 	}
 
-	db, err = spanner.NewClient(ctx, "projects/sos-scratch/instances/home-oregon/databases/sos-prod")
+	g, groupctx = errgroup.WithContext(ctx)
+	g.SetLimit(200)
+
+	db, err = spanner.NewClient(groupctx, "projects/sos-scratch/instances/home-oregon/databases/sos-prod")
 	if err != nil {
 		return err
 	}
+
+	chOutputPackages := make(chan *extractor.Package)
+	chReturnResult := make(chan []*extractor.Package)
+
+	go func() {
+		for pkg := range chOutputPackages {
+			newPackages = append(newPackages, pkg)
+		}
+
+		chReturnResult <- newPackages
+	}()
 
 	for pkgName, pkgMatch := range pkgMatches {
 		if _, ok := statusPkgs[pkgName]; ok {
 			continue
 		}
-
-		if len(pkgMatch.VersionIntersection) == 1 {
-			var version string
-			var sourceVersion string
-			var sourceName string
-			for ver, pkgHash := range pkgMatch.VersionIntersection {
-				version = ver
-				st := spanner.NewStatement(`
-					SELECT Value FROM AptBinaryPackagesExo WHERE SHA256=(@Hash)
-				`)
-				st.Params["Hash"] = pkgHash
-				iter := db.Single().QueryWithOptions(ctx, st, spanner.QueryOptions{RequestTag: "origin=rexpan-ffa"})
-
-				row, err := iter.Next()
-				if err != nil {
-					slog.Error(err.Error())
-					return err
-				}
-				var valueInJSON spanner.NullJSON
-				err = row.ColumnByName("Value", &valueInJSON)
-				if err != nil {
-					slog.Error(err.Error())
-					return err
-				}
-				if !valueInJSON.Valid {
-					return errors.New("Invalid JSON")
-				}
-
-				val, err := valueInJSON.MarshalJSON()
-				if err != nil {
-					slog.Error(err.Error())
-					return err
-				}
-
-				var actualValue BinaryPackage
-				err = json.Unmarshal(val, &actualValue)
-				if err != nil {
-					slog.Error(err.Error())
-					return err
-				}
-
-				controlInner := actualValue.Data.Control.Control
-				if controlInner.Source != nil {
-					if controlInner.Source.Package != "" {
-						sourceName = controlInner.Source.Package
-					}
-
-					if controlInner.Source.Version != "" {
-						sourceVersion = controlInner.Source.Version
-					}
-
-				}
-			}
-
-			var locList = []string{"FullFilesystemAccountability"}
-			for path, versions := range pkgMatch.Files {
-				if _, found := versions[version]; !found {
-					continue
-				}
-				locList = append(locList, path)
-			}
-
-			newPackages = append(newPackages, &extractor.Package{
-				Name:      pkgName,
-				Version:   version,
-				Locations: locList,
-				Extractor: ecosystemmock.Extractor{
-					MockEcosystem: "Debian:12",
-				},
-				// TODO: Fully fillout metadata
-				Metadata: &dpkg.Metadata{
-					PackageName:       pkgName,
-					Status:            "",
-					SourceName:        sourceName,
-					SourceVersion:     sourceVersion,
-					PackageVersion:    version,
-					OSID:              "Debian:12",
-					OSVersionCodename: "",
-					OSVersionID:       "Debian:12",
-					Maintainer:        "",
-					Architecture:      "amd64",
-				},
-			})
+		// TODO: If there is more than 1, we should also query
+		if len(pkgMatch.VersionIntersection) != 1 {
+			continue
 		}
 
+		g.Go(func() error {
+			var outputPkg *extractor.Package
+
+			for ver, pkgHash := range pkgMatch.VersionIntersection {
+				outputPkg, err = loadPackageDetails(groupctx, db, pkgName, ver, pkgHash)
+				if err != nil {
+					return err
+				}
+			}
+
+			outputPkg.Locations = []string{"FullFilesystemAccountability"}
+			for path, versions := range pkgMatch.Files {
+				if _, found := versions[outputPkg.Version]; !found {
+					continue
+				}
+				outputPkg.Locations = append(outputPkg.Locations, path)
+			}
+
+			chOutputPackages <- outputPkg
+
+			return nil
+		})
 		//slog.Info(fmt.Sprintf("Package %q is in hash match, but not in status file", pkgName))
 	}
 
+	err = g.Wait()
+	if err != nil {
+		return err
+	}
+
+	close(chOutputPackages)
+
+	timeTrack(start, "Complete enrichment")
+
 	//slog.Info(fmt.Sprintf("%d packages matched", correctMatches))
 
-	inv.Packages = newPackages
+	inv.Packages = <-chReturnResult
 
 	return nil
+}
+
+func loadPackageDetails(ctx context.Context, db *spanner.Client, pkgName, version string, pkgHash []byte) (*extractor.Package, error) {
+	st := spanner.NewStatement(`
+					SELECT Value FROM AptBinaryPackagesExo WHERE SHA256=(@Hash)
+				`)
+	st.Params["Hash"] = pkgHash
+	iter := db.Single().QueryWithOptions(ctx, st, spanner.QueryOptions{RequestTag: "origin=rexpan-ffa"})
+
+	row, err := iter.Next()
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+	var valueInJSON spanner.NullJSON
+	err = row.ColumnByName("Value", &valueInJSON)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+	if !valueInJSON.Valid {
+		return nil, errors.New("invalid JSON")
+	}
+
+	val, err := valueInJSON.MarshalJSON()
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+
+	var actualValue BinaryPackage
+	err = json.Unmarshal(val, &actualValue)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+
+	var sourceName, sourceVersion string
+	controlInner := actualValue.Data.Control.Control
+	if controlInner.Source != nil {
+		if controlInner.Source.Package != "" {
+			sourceName = controlInner.Source.Package
+		}
+
+		if controlInner.Source.Version != "" {
+			sourceVersion = controlInner.Source.Version
+		}
+
+	}
+
+	return &extractor.Package{
+		Name:    pkgName,
+		Version: version,
+		Extractor: ecosystemmock.Extractor{
+			MockEcosystem: "Debian:12",
+		},
+		// TODO: Fully fillout metadata
+		Metadata: &dpkg.Metadata{
+			PackageName:       pkgName,
+			Status:            "",
+			SourceName:        sourceName,
+			SourceVersion:     sourceVersion,
+			PackageVersion:    version,
+			OSID:              "Debian:12",
+			OSVersionCodename: "",
+			OSVersionID:       "Debian:12",
+			Maintainer:        "",
+			Architecture:      "amd64",
+		},
+	}, nil
 }
 
 type ArtifactHash []byte
