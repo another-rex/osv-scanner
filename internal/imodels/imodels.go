@@ -184,6 +184,10 @@ func (pkg *PackageInfo) SourceType() models.SourceType {
 		return models.SourceTypeArtifact
 	}
 
+	if strings.HasPrefix(pkg.Package.Ecosystem(), "Debian") {
+		return models.SourceTypeOSPackage
+	}
+
 	return models.SourceTypeProjectPackage
 }
 

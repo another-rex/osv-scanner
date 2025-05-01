@@ -14,7 +14,7 @@ import (
 
 const (
 	// Name is the unique name of this extractor.
-	Name = "ecosystemock"
+	Name = "ecosystemmock"
 )
 
 type Extractor struct {

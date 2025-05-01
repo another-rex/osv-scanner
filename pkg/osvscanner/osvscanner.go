@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -32,6 +33,7 @@ import (
 	"github.com/google/osv-scanner/v2/internal/imodels"
 	"github.com/google/osv-scanner/v2/internal/imodels/results"
 	"github.com/google/osv-scanner/v2/internal/output"
+	"github.com/google/osv-scanner/v2/internal/scalibrextract/ecosystemmock"
 	"github.com/google/osv-scanner/v2/internal/scalibrextract/ffa/packageenricher"
 	"github.com/google/osv-scanner/v2/internal/version"
 	"github.com/google/osv-scanner/v2/pkg/models"
@@ -342,6 +344,38 @@ func DoContainerScan(actions ScannerActions) (models.VulnerabilityResults, error
 	if err != nil {
 		return models.VulnerabilityResults{}, fmt.Errorf("failed to enrich container image: %w", err)
 	}
+
+	slog.Info("Start tracing layers")
+	layers, err := img.ChainLayers()
+	if err != nil {
+		return models.VulnerabilityResults{}, err
+	}
+	for i, pkg := range scalibrSR.Inventory.Packages {
+		if pkg.Extractor.Name() != ecosystemmock.Name || len(pkg.Locations) == 0 {
+			continue
+		}
+
+		for i2 := len(layers) - 1; i2 >= 0; i2-- {
+			_, err := layers[i2].Layer().FS().Stat(pkg.Locations[0])
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+
+			if err != nil {
+				return models.VulnerabilityResults{}, err
+			}
+
+			// Latest layer that the file exists in
+			scalibrSR.Inventory.Packages[i].LayerDetails = &extractor.LayerDetails{
+				Index:       layers[i2].Index(),
+				DiffID:      layers[i2].Layer().DiffID().String(),
+				Command:     layers[i2].Layer().Command(),
+				InBaseImage: false, // TODO: Fill in correctly
+			}
+			break
+		}
+	}
+	slog.Info("Stop tracing layers")
 
 	// --- Save Scalibr Scan Results ---
 	scanResult.PackageScanResults = make([]imodels.PackageScanResult, len(scalibrSR.Inventory.Packages))
