@@ -28,6 +28,7 @@ import (
 	archivemeta "github.com/google/osv-scalibr/extractor/filesystem/language/java/archive/metadata"
 	scalibrfs "github.com/google/osv-scalibr/fs"
 	"github.com/google/osv-scalibr/inventory"
+	"github.com/google/osv-scalibr/inventory/vex"
 	"github.com/google/osv-scalibr/purl"
 	"github.com/google/osv-scanner/v2/internal/scalibrenricher/javareach"
 )
@@ -66,16 +67,16 @@ func TestScan(t *testing.T) {
 
 	for _, pkg := range inv.Packages {
 		if pkg.Metadata.(*archivemeta.Metadata).ArtifactID == reachableArtifactID {
-			for _, annotation := range pkg.Annotations {
-				if annotation == extractor.Unknown {
+			for _, signal := range pkg.ExploitabilitySignals {
+				if signal.Justification == vex.VulnerableCodeNotInExecutePath {
 					t.Fatalf("Javareach enrich failed, expected %s to be reachable, but marked as unreachable", pkg.Name)
 				}
 			}
 		}
 		if pkg.Metadata.(*archivemeta.Metadata).ArtifactID == unreachableArtifactID {
 			hasUnreachableAnnotation := false
-			for _, annotation := range pkg.Annotations {
-				if annotation == extractor.Unknown {
+			for _, signal := range pkg.ExploitabilitySignals {
+				if signal.Justification == vex.VulnerableCodeNotInExecutePath {
 					hasUnreachableAnnotation = true
 				}
 			}

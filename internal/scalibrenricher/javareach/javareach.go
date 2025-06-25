@@ -35,6 +35,7 @@ import (
 	"github.com/google/osv-scalibr/extractor/filesystem/language/java/archive"
 	archivemeta "github.com/google/osv-scalibr/extractor/filesystem/language/java/archive/metadata"
 	"github.com/google/osv-scalibr/inventory"
+	"github.com/google/osv-scalibr/inventory/vex"
 	"github.com/google/osv-scalibr/log"
 	"github.com/google/osv-scalibr/plugin"
 )
@@ -333,8 +334,13 @@ func enumerateReachabilityForJar(ctx context.Context, jarPath string, input *enr
 		metadata := inv.Packages[i].Metadata.(*archivemeta.Metadata)
 		artifactName := fmt.Sprintf("%s:%s", metadata.GroupID, metadata.ArtifactID)
 		if _, exists := reachableDeps[artifactName]; !exists {
-			inv.Packages[i].Annotations = append(inv.Packages[i].Annotations, extractor.Unknown)
-			log.Infof("Annotated unreachable package '%s' with: %v", artifactName, inv.Packages[i].Annotations)
+			inv.Packages[i].ExploitabilitySignals = append(inv.Packages[i].ExploitabilitySignals, &vex.PackageExploitabilitySignal{
+				Plugin:          Name,
+				Justification:   vex.VulnerableCodeNotInExecutePath,
+				VulnIdentifiers: nil,
+				MatchesAllVulns: true,
+			})
+			log.Infof("Annotated unreachable package '%s' with: %v", artifactName, inv.Packages[i].ExploitabilitySignals)
 		}
 	}
 
