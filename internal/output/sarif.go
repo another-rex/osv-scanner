@@ -158,13 +158,13 @@ func createSARIFHelpText(gv *groupedSARIFFinding) string {
 			fixedPkgTableData = append(fixedPkgTableData, FixedPkgTableData{
 				PackageName:  p.Name,
 				FixedVersion: strings.Join(slices.Compact(v2), ", "),
-				VulnID:       v.ID,
+				VulnID:       v.Id,
 			})
 			hasFixedVersion = true
 		}
 
 		vulnDescriptions = append(vulnDescriptions, VulnDescription{
-			ID:      v.ID,
+			ID:      v.Id,
 			Details: strings.ReplaceAll(v.Details, "\n", "\n> "),
 		})
 	}

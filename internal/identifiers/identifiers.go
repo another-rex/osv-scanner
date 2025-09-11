@@ -16,7 +16,7 @@ func MostUpstreamsOrder(a, b osvschema.Vulnerability) int {
 		return 1
 	}
 
-	return IDSortFunc(a.ID, b.ID)
+	return IDSortFunc(a.Id, b.Id)
 }
 
 func prefixOrder(prefix string) int {

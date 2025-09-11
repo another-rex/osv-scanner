@@ -111,7 +111,7 @@ type groupedSARIFFinding struct {
 	DisplayID string
 	PkgSource pkgSourceSet
 	// AliasedVulns contains vulns that are OSV vulnerabilities
-	AliasedVulns map[string]osvschema.Vulnerability
+	AliasedVulns map[string]*osvschema.Vulnerability
 	// AliasedIDList contains all aliased IDs, including ones that are not OSV (e.g. CVE IDs)
 	// Sorted by idSortFunc, therefore the first element will be the display ID
 	AliasedIDList []string
