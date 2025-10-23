@@ -10,6 +10,7 @@ require (
 	deps.dev/util/semver v0.0.0-20250917073939-6ff3dd7d2eea
 	github.com/BurntSushi/toml v1.5.0
 	github.com/CycloneDX/cyclonedx-go v0.9.3
+	github.com/brunoga/deep v1.2.5
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/glamour v0.10.0

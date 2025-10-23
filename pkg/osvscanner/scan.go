@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	scalibr "github.com/google/osv-scalibr"
+	"github.com/google/osv-scalibr/enricher/license"
 	"github.com/google/osv-scalibr/enricher/reachability/java"
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/java/pomxmlnet"
@@ -107,6 +108,10 @@ func scan(accessors ExternalAccessors, actions ScannerActions) (*imodels.ScanRes
 
 	if actions.CallAnalysisStates["jar"] {
 		plugins = append(plugins, java.NewDefault())
+	}
+
+	if accessors.LicenseMatcher != nil {
+		plugins = append(plugins, license.New())
 	}
 
 	// --- Lockfiles ---
